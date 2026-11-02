@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>3×8 バーコードラベル自動生成・印刷ツール</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; }
+    body { background-color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; color: #1e293b; }
+    .sidebar { width: 380px; background: #ffffff; border-right: 1px solid #cbd5e1; display: flex; flex-direction: column; z-index: 10; box-shadow: 2px 0 8px rgba(0,0,0,0.05); }
+    .sidebar-header { padding: 14px 18px; border-bottom: 1px solid #e2e8f0; background: #0f172a; color: white; }
+    .sidebar-header h1 { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .sidebar-content { padding: 14px 18px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+    
+    .btn-print-top { background: #0f172a; color: white; padding: 14px; font-size: 15px; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(15,23,42,0.25); transition: 0.2s; }
+    .btn-print-top:hover { background: #2563eb; transform: translateY(-1px); }
+
+    .upload-zone { border: 2px dashed #3b82f6; background: #eff6ff; border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; transition: 0.2s; }
+    .upload-zone:hover { background: #dbeafe; }
+    .upload-zone p { font-size: 13px; font-weight: 700; color: #1e40af; }
+    .upload-zone span { font-size: 11px; color: #64748b; }
+    .section-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+    .section-card h2 { font-size: 12px; font-weight: 700; margin-bottom: 8px; color: #334155; }
+    .form-group { margin-bottom: 8px; }
+    .form-group label { display: block; font-size: 11px; font-weight: 600; margin-bottom: 3px; color: #475569; }
+    .form-group input { width: 100%; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; outline: none; }
+    .btn-primary { width: 100%; padding: 8px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-primary:hover { background: #1d4ed8; }
+    
+    .main-preview { flex: 1; overflow: auto; padding: 25px; display: flex; flex-direction: column; align-items: center; background: #64748b; }
+    .a4-page { width: 210mm; height: 297mm; background: white; box-shadow: 0 8px 24px rgba(0,0,0,0.25); padding: 12mm 6mm; margin-bottom: 25px; display: grid; grid-template-columns: repeat(3, 66mm); grid-template-rows: repeat(8, 34.125mm); box-sizing: border-box; }
+    .label-box { width: 66mm; height: 34.125mm; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2mm 3mm; border: 1px dashed #cbd5e1; box-sizing: border-box; overflow: hidden; text-align: center; }
+    .label-box svg { max-width: 58mm; height: 13mm; }
+    .label-sku { font-size: 9px; font-weight: 700; margin-top: 1.5mm; font-family: monospace; white-space: nowrap; }
+    .label-name { font-size: 7.5px; line-height: 1.1; margin-top: 1mm; max-height: 8mm; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+    @media print {
+      body { background: white; overflow: visible; }
+      .sidebar { display: none !important; }
+      .main-preview { padding: 0 !important; background: white !important; overflow: visible !important; }
+      .a4-page { box-shadow: none !important; margin: 0 !important; page-break-after: always !important; }
+      .label-box { border: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1>🏷️ 3×8 バーコードラベル印刷</h1>
+    </div>
+    <div class="sidebar-content">
+      <button class="btn-print-top" onclick="triggerPrint()">🖨️ 印刷する (A4 100%)</button>
+
+      <div class="upload-zone" onclick="document.getElementById('excelFile').click()">
+        <p>📁 Excelファイルをアップロード</p>
+        <span>ここをクリック、またはドラッグ＆ドロップ</span>
+        <input type="file" id="excelFile" accept=".xlsx, .xls" style="display:none;" onchange="handleExcel(event)">
+      </div>
+
+      <div class="section-card">
+        <h2>開始位置（使用済み枠のスキップ）</h2>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <input type="range" id="offsetRange" min="1" max="24" value="1" style="flex:1" oninput="updateOffset(this.value)">
+          <span id="offsetVal" style="font-weight:700; font-size:13px; width:45px;">1枠目</span>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h2>手動追加</h2>
+        <div class="form-group">
+          <label>商品コード (SKU)</label>
+          <input type="text" id="manualSku" placeholder="例: ATE-211590FREBLK" onkeydown="if(event.key==='Enter') addManual()">
+        </div>
+        <div class="form-group">
+          <label>商品名称</label>
+          <input type="text" id="manualName" placeholder="（未入力時はSKUと同じ）">
+        </div>
+        <div class="form-group">
+          <label>数量</label>
+          <input type="number" id="manualQty" value="1" min="1">
+        </div>
+        <button class="btn-primary" onclick="addManual()">＋ リストに追加</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-preview" id="previewArea"></div>
+
+  <script>
+    let printItems = [
+      { sku: "AFA-252941FRESVX", name: "Metal Heart Chain Cross-body Strap - Silver + Silver Metal" },
+      { sku: "AFA-252941FRESVX", name: "Metal Heart Chain Cross-body Strap - Silver + Silver Metal" },
+      { sku: "AFA-253046FRESVX", name: "2-in-1 Metal Cross-body Chain - Silver + Gold Metal" },
+      { sku: "AFA-253046FRESVX", name: "2-in-1 Metal Cross-body Chain - Silver + Gold Metal" },
+      { sku: "AFA-253046FRESVX", name: "2-in-1 Metal Cross-body Chain - Silver + Gold Metal" },
+      { sku: "AFA-263298FRERDX", name: "Adjustable Jelly Wristlet - Flower - Red" },
+      { sku: "AFA-263298FRERDX", name: "Adjustable Jelly Wristlet - Flower - Red" },
+      { sku: "ATE-211590FREBLK", name: "Large Metal C Hook Black with White Logo V2" },
+      { sku: "ATE-211590FREBLK", name: "Large Metal C Hook Black with White Logo V2" },
+      { sku: "ATE-211590FREBLK", name: "Large Metal C Hook Black with White Logo V2" },
+      { sku: "ATE-211590FREBLK", name: "Large Metal C Hook Black with White Logo V2" }
+    ];
+    let startOffset = 0;
+
+    function handleExcel(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const data = new Uint8Array(evt.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        
+        printItems = [];
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || !row[0]) continue;
+          const sku = String(row[0]).trim();
+          const name = row[1] ? String(row[1]).trim() : sku;
+          const qty = parseInt(row[2]) || 1;
+          for (let q = 0; q < qty; q++) {
+            printItems.push({ sku, name });
+          }
+        }
+        renderPages();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function addManual() {
+      const sku = document.getElementById('manualSku').value.trim();
+      const name = document.getElementById('manualName').value.trim() || sku;
+      const qty = parseInt(document.getElementById('manualQty').value) || 1;
+      if (!sku) return;
+      for (let i = 0; i < qty; i++) {
+        printItems.push({ sku, name });
+      }
+      document.getElementById('manualSku').value = '';
+      document.getElementById('manualName').value = '';
+      renderPages();
+    }
+
+    function updateOffset(val) {
+      startOffset = parseInt(val) - 1;
+      document.getElementById('offsetVal').innerText = val + "枠目";
+      renderPages();
+    }
+
+    function renderPages() {
+      const area = document.getElementById('previewArea');
+      area.innerHTML = '';
+      const totalCells = startOffset + printItems.length;
+      const totalPages = Math.ceil(totalCells / 24) || 1;
+
+      for (let p = 0; p < totalPages; p++) {
+        const page = document.createElement('div');
+        page.className = 'a4-page';
+        for (let c = 0; c < 24; c++) {
+          const cellIndex = p * 24 + c;
+          const box = document.createElement('div');
+          box.className = 'label-box';
+          if (cellIndex >= startOffset && cellIndex < totalCells) {
+            const item = printItems[cellIndex - startOffset];
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            const skuSpan = document.createElement('div');
+            skuSpan.className = 'label-sku';
+            skuSpan.innerText = item.sku;
+            const nameSpan = document.createElement('div');
+            nameSpan.className = 'label-name';
+            nameSpan.innerText = item.name;
+
+            box.appendChild(svg);
+            box.appendChild(skuSpan);
+            box.appendChild(nameSpan);
+
+            try {
+              JsBarcode(svg, item.sku, {
+                format: "CODE128",
+                width: 1.2,
+                height: 38,
+                displayValue: false,
+                margin: 0
+              });
+            } catch(e) {}
+          }
+          page.appendChild(box);
+        }
+        area.appendChild(page);
+      }
+    }
+
+    function triggerPrint() {
+      window.print();
+    }
+
+    renderPages();
+  </script>
+</body>
+</html>
