@@ -39,14 +39,15 @@
 
     .main-preview { flex: 1; overflow: auto; padding: 25px; display: flex; flex-direction: column; align-items: center; background: #64748b; }
     .a4-page { width: 210mm; height: 297mm; background: white; box-shadow: 0 8px 24px rgba(0,0,0,0.25); padding: 12mm 6mm; margin-bottom: 25px; display: grid; grid-template-columns: repeat(3, 66mm); grid-template-rows: repeat(8, 34.125mm); box-sizing: border-box; }
-    .label-box { width: 66mm; height: 34.125mm; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2mm 3mm; border: 1px dashed #cbd5e1; box-sizing: border-box; overflow: hidden; text-align: center; }
     
-    /* 調整條碼高度為 11.5mm，騰出空間給放大的文字 */
-    .label-box svg { max-width: 58mm; height: 11.5mm; }
-    /* SKU 字體稍微放大至 9.5px */
-    .label-sku { font-size: 9.5px; font-weight: 700; margin-top: 1.5mm; font-family: monospace; white-space: nowrap; }
-    /* 商品名稱（Description）字體由 7.5px 放大至 10px，並加粗及調整最大高度 */
-    .label-name { font-size: 10px; font-weight: 600; line-height: 1.15; margin-top: 1mm; max-height: 10mm; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    /* 減少上下 padding 至 1.5mm，騰出更多空間畀大字體 */
+    .label-box { width: 66mm; height: 34.125mm; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5mm 2.5mm; border: 1px dashed #cbd5e1; box-sizing: border-box; overflow: hidden; text-align: center; }
+    /* 條碼高度調至 9.5mm，依然清晰易掃描，同時將空間留畀文字 */
+    .label-box svg { max-width: 58mm; height: 9.5mm; }
+    /* SKU 放大至 10.5px */
+    .label-sku { font-size: 10.5px; font-weight: 700; margin-top: 1mm; font-family: monospace; white-space: nowrap; }
+    /* Description 再進一步放大至 11.5px，加粗，高度設為 12mm 確保兩行字完整顯示 */
+    .label-name { font-size: 11.5px; font-weight: 700; line-height: 1.15; margin-top: 1mm; max-height: 12mm; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
     @media print {
       body { background: white; overflow: visible; }
@@ -104,7 +105,7 @@
   <div class="main-preview" id="previewArea"></div>
 
   <script>
-    // ⚠️ 請將你原本檔案中完整的 const SKU_DATABASE = { ... }; 這一整行貼在下面這一行：
+    // ⚠️ 請將你原本 GitHub 檔案中完整的 const SKU_DATABASE = { ... }; 這一整行貼在下面這一行：
     const SKU_DATABASE = { /* 貼上原本的 4,200 筆資料 */ };
 
     let printItems = [
